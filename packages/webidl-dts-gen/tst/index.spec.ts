@@ -365,10 +365,6 @@ describe('convert', () => {
 
       expect(ts).toContain('class ShapeFilter {')
       expect(ts).toContain('class ShapeFilterJS extends ShapeFilter {')
-      // Emscripten JSImplementation methods differ in signature and may
-      // produce type errors when overriding base methods. We add a
-      // `// @ts-expect-error` comment before such methods.
-      expect(ts).toContain('// @ts-expect-error: emscripten binder passes pointers, not wrapped classes')
       expect(ts).toContain('ShouldCollide(inShape2: number, inSubShapeIDOfShape2: number): boolean;')
     })
 
@@ -400,6 +396,85 @@ describe('convert', () => {
 
       expect(ts).toContain('class PathConstraintPath {')
       expect(ts).toContain('class PathConstraintPathJS extends PathConstraintPath {')
+    })
+
+    it('does not add ts-expect-error when base params are all numbers', async () => {
+      const idl = `
+        interface Base {
+          void foo(unsigned long a, float b);
+        };
+
+        [JSImplementation="Base"]
+        interface BaseImpl {
+          void foo(unsigned long a, float b);
+        };
+      `
+
+      const ts = await convert(idl, { emscripten: true })
+
+      // When the base signature is numeric types, the JSImplementation's
+      // numeric parameters should match and no ts-expect-error should be added.
+      expect(ts).toContain('class Base {')
+      expect(ts).toContain('class BaseImpl extends Base {')
+      expect(ts).not.toContain('// @ts-expect-error')
+      expect(ts).toContain('foo(a: number, b: number): void;')
+    })
+
+    it('adds ts-expect-error for DebugDraw JSImplementation where base param is non-number', async () => {
+      const idl = `
+        interface DebugDraw {
+          void DebugDraw();
+
+          void handleDepthMask(boolean state);
+          void handleTexture(boolean state);
+          void handleBegin(duDebugDrawPrimitives prim, float size);
+          void handleVertexWithColor(float x, float y, float z, unsigned long color);
+          void handleVertexWithColorAndUV(float x, float y, float z, unsigned long color, float u, float v);
+          void handleEnd();
+        };
+
+        [JSImplementation="DebugDraw"]
+        interface DebugDrawImpl {
+            void DebugDrawImpl();
+
+            void handleDepthMask(boolean state);
+            void handleTexture(boolean state);
+            void handleBegin([Const] duDebugDrawPrimitives prim, float size);
+            void handleVertexWithColor([Const] float x, [Const] float y, [Const] float z, [Const] unsigned long color);
+            void handleVertexWithColorAndUV([Const] float x, [Const] float y, [Const] float z, [Const] unsigned long color, [Const] float u, [Const] float v);
+            void handleEnd();
+        };
+      `
+
+      const ts = await convert(idl, { emscripten: true })
+
+      expect(ts).toContain('class DebugDraw {')
+      expect(ts).toContain('class DebugDrawImpl extends DebugDraw {')
+      // At least one method should be prefixed with ts-expect-error because
+      // `duDebugDrawPrimitives` is not a number but the implementation receives a number.
+      expect(ts).toContain('// @ts-expect-error')
+      expect(ts).toContain('handleBegin(prim: number, size: number): void;')
+    })
+
+    it('does not add ts-expect-error for methods not present on base', async () => {
+      const idl = `
+        interface Base2 {
+          void existingMethod(duDebugDrawPrimitives prim);
+        };
+
+        [JSImplementation="Base2"]
+        interface Impl2 {
+          void existingMethod([Const] duDebugDrawPrimitives prim);
+          void implOnlyMethod([Const] duDebugDrawPrimitives prim);
+        };
+      `
+
+      const ts = await convert(idl, { emscripten: true })
+
+      // existingMethod should get the ts-expect-error, implOnlyMethod should not
+      expect(ts).toContain('// @ts-expect-error')
+      expect(ts).toContain('existingMethod(prim: number): void;')
+      expect(ts).toContain('implOnlyMethod(prim: number): void;')
     })
   })
 })

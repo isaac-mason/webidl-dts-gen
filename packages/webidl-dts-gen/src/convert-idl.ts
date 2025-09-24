@@ -45,7 +45,7 @@ export function convertIDL(rootTypes: webidl2.IDLRootType[], options: Options = 
       case 'interface mixin':
       case 'dictionary':
       case 'namespace':
-        nodes.push(convertInterface(rootType, options))
+        nodes.push(convertInterface(rootType, options, rootTypes))
         for (const attr of rootType.extAttrs) {
           if (attr.name === 'Exposed' && attr.rhs?.value === 'Window') {
             nodes.push(
@@ -211,8 +211,23 @@ function isFrozenArrayAttribute(member: webidl2.IDLInterfaceMemberType | webidl2
 
 type InterfaceIDL = webidl2.InterfaceType | webidl2.DictionaryType | webidl2.InterfaceMixinType | webidl2.NamespaceType
 
-function convertInterface(idl: InterfaceIDL, options: Options) {
+function convertInterface(idl: InterfaceIDL, options: Options, rootTypes: webidl2.IDLRootType[]) {
   const emscriptenJSImplementation = options.emscripten && idl.extAttrs.find((attr) => attr.name === 'JSImplementation')
+
+  // If there's a JSImplementation attribute, find the base interface (by name)
+  // and collect the methods that the base declares. We'll only add
+  // `// @ts-expect-error` for methods that the base actually declares.
+  let baseMethodNames: Set<string> | undefined = undefined
+  if (emscriptenJSImplementation) {
+    let attributeValue = emscriptenJSImplementation.rhs.value as string
+    attributeValue = attributeValue.replace(/^"(.*)"$/, '$1')
+    const base = rootTypes.find((t) => 'name' in t && t.name === attributeValue && t.type === 'interface') as
+      | webidl2.InterfaceType
+      | undefined
+    if (base) {
+      baseMethodNames = new Set(base.members.filter((m): m is webidl2.OperationMemberType => m.type === 'operation').map((m) => m.name))
+    }
+  }
 
   const members: (ts.TypeElement | ts.ClassElement)[] = []
 
@@ -262,7 +277,7 @@ function convertInterface(idl: InterfaceIDL, options: Options) {
         if (member.name === idl.name) {
           members.push(convertMemberConstructor(member, options))
         } else {
-          members.push(convertMemberOperation(member, !!emscriptenJSImplementation, options))
+          members.push(convertMemberOperation(member, !!emscriptenJSImplementation, options, baseMethodNames))
         }
         break
       case 'constructor':
@@ -407,7 +422,12 @@ function createEmscriptenAttributeSetter(value: webidl2.AttributeMemberType) {
   })
 }
 
-function convertMemberOperation(idl: webidl2.OperationMemberType, isEmscriptenJSImplementation: boolean, { emscripten }: Options) {
+function convertMemberOperation(
+  idl: webidl2.OperationMemberType,
+  isEmscriptenJSImplementation: boolean,
+  { emscripten }: Options,
+  baseMethodNames?: Set<string>,
+) {
   const parameters = idl.arguments.map(isEmscriptenJSImplementation ? convertEmscriptenJSImplementationArgument : convertArgument)
   const modifiers: ts.Modifier[] = []
 
@@ -427,11 +447,32 @@ function convertMemberOperation(idl: webidl2.OperationMemberType, isEmscriptenJS
   // When using JSImplementation with emscripten, argument types on the
   // implementation can differ (they're numeric/pointers). That causes
   // TypeScript to complain about incompatible method overrides. Add a
-  // `// @ts-expect-error` leading comment to suppress those expected errors.
-  if (isEmscriptenJSImplementation && emscripten) {
-    // addSyntheticLeadingComment expects the text without the leading slashes
-    // and will emit a single-line comment when printing the node.
-    ts.addSyntheticLeadingComment(method as ts.Node, ts.SyntaxKind.SingleLineCommentTrivia, ' @ts-expect-error: emscripten binder passes pointers, not wrapped classes', /* hasTrailingNewLine */ true)
+  // `// @ts-expect-error` leading comment to suppress those expected errors,
+  // but only if the base actually declares the method and at least one of
+  // the base parameter types is not `number`.
+  if (isEmscriptenJSImplementation && emscripten && baseMethodNames && baseMethodNames.has(idl.name)) {
+    // Also compute the "normal" parameter types (what the base class would declare)
+    // so we can detect when the emscripten JSImplementation uses numeric pointer
+    // arguments that differ from the base signature. We'll only add the
+    // `// @ts-expect-error` when at least one base parameter is not a number.
+    const normalParameters = idl.arguments.map(convertArgument)
+
+    // Check if any of the normal/base parameter types are not `number`.
+    const anyNonNumber = normalParameters.some((p) => {
+      const t = (p as ts.ParameterDeclaration).type
+      return !(t && (t as ts.TypeNode).kind === ts.SyntaxKind.NumberKeyword)
+    })
+
+    if (anyNonNumber) {
+      // addSyntheticLeadingComment expects the text without the leading slashes
+      // and will emit a single-line comment when printing the node.
+      ts.addSyntheticLeadingComment(
+        method as ts.Node,
+        ts.SyntaxKind.SingleLineCommentTrivia,
+        ' @ts-expect-error: emscripten binder passes pointers, not wrapped classes',
+        /* hasTrailingNewLine */ true,
+      )
+    }
   }
 
   return method
