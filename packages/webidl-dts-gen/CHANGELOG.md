@@ -1,5 +1,11 @@
 # webidl-dts-gen
 
+## 1.12.0
+
+### Minor Changes
+
+- 9c6d586: fix: patch fix JSImplementation types with '@ts-expect-error' for emscripten's numeric pointer args when base and subclass methods conflict
+
 ## 1.11.3
 
 ### Patch Changes
