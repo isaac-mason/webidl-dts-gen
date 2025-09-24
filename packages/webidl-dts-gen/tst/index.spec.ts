@@ -365,6 +365,10 @@ describe('convert', () => {
 
       expect(ts).toContain('class ShapeFilter {')
       expect(ts).toContain('class ShapeFilterJS extends ShapeFilter {')
+      // Emscripten JSImplementation methods differ in signature and may
+      // produce type errors when overriding base methods. We add a
+      // `// @ts-expect-error` comment before such methods.
+      expect(ts).toContain('// @ts-expect-error: emscripten binder passes pointers, not wrapped classes')
       expect(ts).toContain('ShouldCollide(inShape2: number, inSubShapeIDOfShape2: number): boolean;')
     })
 

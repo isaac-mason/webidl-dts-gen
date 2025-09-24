@@ -416,13 +416,25 @@ function convertMemberOperation(idl: webidl2.OperationMemberType, isEmscriptenJS
     modifiers.push(ts.factory.createModifier(ts.SyntaxKind.StaticKeyword))
   }
 
-  return createMethod({
+  const method = createMethod({
     modifiers,
     name: idl.name,
     type: convertType(idl.idlType),
     parameters,
     emscripten,
   })
+
+  // When using JSImplementation with emscripten, argument types on the
+  // implementation can differ (they're numeric/pointers). That causes
+  // TypeScript to complain about incompatible method overrides. Add a
+  // `// @ts-expect-error` leading comment to suppress those expected errors.
+  if (isEmscriptenJSImplementation && emscripten) {
+    // addSyntheticLeadingComment expects the text without the leading slashes
+    // and will emit a single-line comment when printing the node.
+    ts.addSyntheticLeadingComment(method as ts.Node, ts.SyntaxKind.SingleLineCommentTrivia, ' @ts-expect-error: emscripten binder passes pointers, not wrapped classes', /* hasTrailingNewLine */ true)
+  }
+
+  return method
 }
 
 function convertMemberConstructor(idl: webidl2.ConstructorMemberType | webidl2.OperationMemberType, { emscripten }: Options) {
