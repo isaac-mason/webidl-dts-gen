@@ -742,12 +742,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/node@npm:^20.12.12":
-  version: 20.16.5
-  resolution: "@types/node@npm:20.16.5"
+"@types/node@npm:^24.7.2":
+  version: 24.7.2
+  resolution: "@types/node@npm:24.7.2"
   dependencies:
-    undici-types: "npm:~6.19.2"
-  checksum: 6af7994129815010bcbc4cf8221865559c8116ff43e74a6549525c2108267596fc2d18aff5d5ecfe089fb60a119f975631343e2c65c52bfa0955ed9dc56733d6
+    undici-types: "npm:~7.14.0"
+  checksum: 03f662f10e4b89bc97016e067101cbabe55025b54c24afb581fb50992d5eeaaf417bdae34bbc668ae8759d3cdbbbadf35fc8b9b29d26f52ede2525d48e919e49
   languageName: node
   linkType: hard
 
@@ -2919,10 +2919,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"undici-types@npm:~6.19.2":
-  version: 6.19.8
-  resolution: "undici-types@npm:6.19.8"
-  checksum: 078afa5990fba110f6824823ace86073b4638f1d5112ee26e790155f481f2a868cc3e0615505b6f4282bdf74a3d8caad715fd809e870c2bb0704e3ea6082f344
+"undici-types@npm:~7.14.0":
+  version: 7.14.0
+  resolution: "undici-types@npm:7.14.0"
+  checksum: e7f3214b45d788f03c51ceb33817be99c65dae203863aa9386b3ccc47201a245a7955fc721fb581da9c888b6ebad59fa3f53405214afec04c455a479908f0f14
   languageName: node
   linkType: hard
 
@@ -3094,7 +3094,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "webidl-dts-gen@workspace:packages/webidl-dts-gen"
   dependencies:
-    "@types/node": "npm:^20.12.12"
+    "@types/node": "npm:^24.7.2"
     "@types/webidl2": "npm:^24.4.3"
     "@types/yargs": "npm:^17.0.33"
     "@vitest/coverage-v8": "npm:^2.1.1"
